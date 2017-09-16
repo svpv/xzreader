@@ -149,4 +149,52 @@ void xzreader_free(struct xzreader *z)
     free(z);
 }
 
+ssize_t xzreader_read(struct xzreader *z, void *buf, size_t size, const char *err[2])
+{
+    if (z->eof)
+	return 0;
+    assert(size > 0);
+
+    size_t total = 0;
+
+    do {
+	// Prefill the internal buffer.
+	unsigned w;
+	ssize_t ret = peeka(z->fda, &w, 4);
+	if (ret < 0)
+	    return ERRNO("read"), -1;
+	if (ret == 0)
+	    return ERRSTR("unexpected EOF"), -1;
+
+	// We must not read past the end of the current frame, and the library
+	// doesn't give us any clue as to where that end might be.  Therefore,
+	// I employ this special technique of "tentative reads": the internal
+	// buffer is fed into the decoder, and how many bytes are actually
+	// read becomes known only after the call.
+	z->lzma.next_in = (void *) z->fda->cur;
+	z->lzma.avail_in = z->fda->end - z->fda->cur;
+	z->lzma.next_out = buf;
+	z->lzma.avail_out = size;
+
+	lzma_ret zret = lzma_code(&z->lzma, LZMA_RUN);
+	if (zret == LZMA_STREAM_END)
+	    z->eof = true;
+	else if (zret != LZMA_OK)
+	    return ERRXZ("lzma_code", zret), -1;
+
+	// See how many bytes have been read.
+	if (z->lzma.avail_in)
+	    z->fda->cur = z->fda->end - z->lzma.avail_in;
+	else
+	    z->fda->cur = z->fda->end = NULL;
+
+	// See how many bytes have been recovered.
+	size_t n = size - z->lzma.avail_out;
+	size = z->lzma.avail_out, buf = (char *) buf + n;
+	total += n;
+    } while (size && !z->eof);
+
+    return total;
+}
+
 // ex:set ts=8 sts=4 sw=4 noet:

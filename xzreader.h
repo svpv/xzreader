@@ -50,6 +50,12 @@ int xzreader_reopen(struct xzreader *z, struct fda *fda, const char *err[2])
 // Doesn't close its file descriptor.
 void xzreader_free(struct xzreader *z);
 
+// Returns the number of bytes read, 0 on EOF, -1 on error.  If the number
+// of bytes read is less than the number of bytes requested, this indicates
+// EOF (subsequent reads will return 0).
+ssize_t xzreader_read(struct xzreader *z, void *buf, size_t size, const char *err[2])
+		      __attribute__((nonnull));
+
 #ifdef __cplusplus
 }
 #endif
