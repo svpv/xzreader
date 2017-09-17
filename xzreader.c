@@ -90,7 +90,7 @@ static int xzreader_begin(lzma_stream *lzma, struct fda *fda, const char *err[2]
 struct xzreader {
     struct fda *fda;
     lzma_stream lzma;
-    bool eof;
+    bool eof, err;
 };
 
 // 80M should be enough to decode 'xz -9' output.  The limit once was
@@ -115,7 +115,7 @@ int xzreader_open(struct xzreader **zp, struct fda *fda, const char *err[2])
 
     z->fda = fda;
     z->lzma = lzma;
-    z->eof = false;
+    z->eof = z->err = false;
 
     *zp = z;
     return 1;
@@ -127,18 +127,26 @@ int xzreader_reopen(struct xzreader *z, struct fda *fda, const char *err[2])
 	z->fda = fda;
 
     // The stream can be reused only upon successful decoding.
-    if (!z->eof) {
+    if (z->eof)
+	z->eof = false;
+    else {
 	lzma_end(&z->lzma);
 	z->lzma = (lzma_stream) LZMA_STREAM_INIT;
 
 	lzma_ret zret = lzma_stream_decoder(&z->lzma, MEMLIMIT, 0);
 	if (zret != LZMA_OK)
-	    return ERRXZ("lzma_stream_decoder", zret), -1;
+	    return ERRXZ("lzma_stream_decoder", zret), -(z->err = true);
     }
 
-    z->eof = false;
+    int rc = xzreader_begin(&z->lzma, z->fda, err);
+    if (rc < 0)
+	return -(z->err = true);
+    if (rc == 0)
+	return z->eof = true, +(z->err = false);
 
-    return xzreader_begin(&z->lzma, z->fda, err);
+    z->err = false;
+
+    return 1;
 }
 
 void xzreader_free(struct xzreader *z)
@@ -151,6 +159,8 @@ void xzreader_free(struct xzreader *z)
 
 ssize_t xzreader_read(struct xzreader *z, void *buf, size_t size, const char *err[2])
 {
+    if (z->err)
+	return ERRSTR("pending error"), -1;
     if (z->eof)
 	return 0;
     assert(size > 0);
@@ -162,9 +172,9 @@ ssize_t xzreader_read(struct xzreader *z, void *buf, size_t size, const char *er
 	unsigned w;
 	ssize_t ret = peeka(z->fda, &w, 4);
 	if (ret < 0)
-	    return ERRNO("read"), -1;
+	    return ERRNO("read"), -(z->err = true);
 	if (ret == 0)
-	    return ERRSTR("unexpected EOF"), -1;
+	    return ERRSTR("unexpected EOF"), -(z->err = true);
 
 	// We must not read past the end of the current frame, and the library
 	// doesn't give us any clue as to where that end might be.  Therefore,
@@ -180,7 +190,7 @@ ssize_t xzreader_read(struct xzreader *z, void *buf, size_t size, const char *er
 	if (zret == LZMA_STREAM_END)
 	    z->eof = true;
 	else if (zret != LZMA_OK)
-	    return ERRXZ("lzma_code", zret), -1;
+	    return ERRXZ("lzma_code", zret), -(z->err = true);
 
 	// See how many bytes have been read.
 	if (z->lzma.avail_in)
