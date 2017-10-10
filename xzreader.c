@@ -126,25 +126,19 @@ int xzreader_reopen(struct xzreader *z, struct fda *fda, const char *err[2])
     if (fda)
 	z->fda = fda;
 
-    // The stream can be reused only upon successful decoding.
-    if (z->eof)
-	z->eof = false;
-    else {
-	lzma_end(&z->lzma);
-	z->lzma = (lzma_stream) LZMA_STREAM_INIT;
+    z->eof = z->err = false;
 
-	lzma_ret zret = lzma_stream_decoder(&z->lzma, MEMLIMIT, 0);
-	if (zret != LZMA_OK)
-	    return ERRXZ("lzma_stream_decoder", zret), -(z->err = true);
-    }
+    // The stream is reset automatically only in SEQ_STREAM_PADDING,
+    // which is never reached, because LZMA_CONCATENATED wasn't used.
+    lzma_ret zret = lzma_stream_decoder(&z->lzma, MEMLIMIT, 0);
+    if (zret != LZMA_OK)
+	return ERRXZ("lzma_stream_decoder", zret), -(z->err = true);
 
     int rc = xzreader_begin(&z->lzma, z->fda, err);
     if (rc < 0)
 	return -(z->err = true);
     if (rc == 0)
-	return z->eof = true, +(z->err = false);
-
-    z->err = false;
+	return z->eof = true, 0;
 
     return 1;
 }
