@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <limits.h>
 #include <errno.h>
 #include <lzma.h>
 #include "reada.h"
@@ -153,11 +154,12 @@ void xzreader_free(struct xzreader *z)
 
 ssize_t xzreader_read(struct xzreader *z, void *buf, size_t size, const char *err[2])
 {
+    assert(size > 0 && size <= SSIZE_MAX);
+
     if (z->err)
 	return ERRSTR("pending error"), -1;
     if (z->eof)
 	return 0;
-    assert(size > 0);
 
     size_t total = 0;
 
