@@ -163,8 +163,8 @@ ssize_t xzreader_read(struct xzreader *z, void *buf, size_t size, const char *er
 
     do {
 	// Prefill the internal buffer.
-	unsigned w;
-	ssize_t ret = peeka(z->fda, &w, 4);
+	unsigned long w;
+	ssize_t ret = peeka(z->fda, &w, sizeof w);
 	if (ret < 0)
 	    return ERRNO("read"), -(z->err = true);
 	if (ret == 0)
