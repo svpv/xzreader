@@ -18,8 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef XZREADER_H
-#define XZREADER_H
+#pragma once
 
 #include <sys/types.h> // ssize_t
 
@@ -58,5 +57,4 @@ ssize_t xzreader_read(struct xzreader *z, void *buf, size_t size, const char *er
 
 #ifdef __cplusplus
 }
-#endif
 #endif
