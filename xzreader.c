@@ -94,10 +94,10 @@ struct xzreader {
     bool eof, err;
 };
 
-// 80M should be enough to decode 'xz -9' output.  The limit once was
-// in use and was specified in the pre-5.0 xz(1) manpage.  The limit
-// exemplifies the Pareto principle.
-#define MEMLIMIT (80<<20)
+// The deault limit in RPM is 100M.  This should be enough to decode
+// compressed inputs created with 64M+32M dictionary; "xz -9" uses 64M
+// dictionary.
+#define MEMLIMIT (100<<20)
 
 int xzreader_open(struct xzreader **zp, struct fda *fda, const char *err[2])
 {
